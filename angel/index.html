@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gofile Wiki Media Player</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons CDN -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#09090b',
+                        cardBg: '#121215',
+                        accentPink: '#ff2a70',
+                        accentPurple: '#9d4edd',
+                        accentOrange: '#ff8c00'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+        /* Custom video range slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #3f3f46;
+            border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #ff2a70;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -4px;
+        }
+    </style>
+</head>
+<body class="bg-darkBg text-white min-h-screen font-sans antialiased pb-20 select-none">
+
+    <!-- Container Utama Max Mobile Viewport Size -->
+    <div class="max-w-md mx-auto min-h-screen flex flex-col relative px-3 pt-3">
+        
+        <!-- Direct Link Config Banner -->
+        <div class="mb-3 bg-cardBg border border-purple-500/30 rounded-xl p-2.5 shadow-lg">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+                <span class="text-xs font-semibold text-purple-400 flex items-center gap-1">
+                    <i class="ph ph-link text-sm"></i> Direct Link Destination
+                </span>
+                <span id="linkStatus" class="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-500/30">Aktif</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="url" id="directLinkInput" placeholder="https://example.com/direct-link" value="https://example.com" class="w-full bg-zinc-900 text-xs text-gray-200 px-3 py-1.5 rounded-lg border border-zinc-700 focus:outline-none focus:border-accentPink transition font-mono">
+                <button onclick="saveDirectLink()" class="bg-accentPurple hover:bg-purple-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shrink-0 active:scale-95">
+                    Simpan
+                </button>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-3 flex items-center gap-2">
+            <div class="relative w-full">
+                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+                <input type="text" id="searchInput" oninput="filterVideos()" placeholder="Cari ID Video..." class="w-full bg-cardBg text-sm text-gray-200 pl-9 pr-4 py-2 rounded-xl border border-zinc-800 focus:outline-none focus:border-accentPurple transition">
+            </div>
+        </div>
+
+        <!-- Pemutar Video Utama (Main Player) -->
+        <div class="relative w-full bg-black rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 group">
+            <!-- Canvas Video / Thumbnail Display -->
+            <div id="videoContainer" class="relative w-full aspect-[4/3] bg-zinc-900 flex items-center justify-center overflow-hidden">
+                <!-- Thumbnail Layer -->
+                <img id="mainThumbnail" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&q=80" class="w-full h-full object-cover blur-sm brightness-75 scale-105 transition-all duration-300">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+
+                <!-- Central Overlay Play Button -->
+                <button id="playBtn" onclick="handleMainPlayClick()" class="absolute z-10 w-16 h-16 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 text-white hover:scale-110 active:scale-95 transition">
+                    <i id="playIcon" class="ph-fill ph-play text-2xl ml-1"></i>
+                </button>
+
+                <!-- Playing Animation (Hidden by default) -->
+                <div id="playingBadge" class="hidden absolute top-3 left-3 bg-red-600/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full items-center gap-1.5 backdrop-blur-md animate-pulse">
+                    <span class="w-2 h-2 bg-white rounded-full"></span> MEMUTAR
+                </div>
+
+                <!-- Custom Bottom Control Bar -->
+                <div class="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/90 to-transparent flex flex-col gap-2">
+                    <!-- Progress Bar -->
+                    <input type="range" id="progressBar" value="0" min="0" max="100" oninput="seekVideo(this.value)" class="w-full cursor-pointer">
+                    
+                    <div class="flex items-center justify-between text-xs text-gray-300">
+                        <span id="timeDisplay" class="font-mono tracking-wider">0:00 / 1:36</span>
+                        <div class="flex items-center gap-4 text-lg">
+                            <button onclick="toggleMute()" class="hover:text-white transition">
+                                <i id="muteIcon" class="ph ph-speaker-high"></i>
+                            </button>
+                            <button onclick="toggleFullscreen()" class="hover:text-white transition">
+                                <i class="ph ph-corners-out"></i>
+                            </button>
+                            <button onclick="openOptions()" class="hover:text-white transition">
+                                <i class="ph ph-dots-three-vertical"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Video Info -->
+        <div class="my-3 px-1 flex items-center justify-between">
+            <h1 id="mainTitle" class="text-xl font-bold text-white tracking-wide font-mono">1000266335</h1>
+            <div class="flex items-center gap-1.5 text-xs font-semibold text-accentOrange bg-accentOrange/10 border border-accentOrange/20 px-2.5 py-1 rounded-full">
+                <span class="w-2 h-2 bg-accentOrange rounded-full animate-ping"></span>
+                <span id="mainViews">123k tayangan</span>
+            </div>
+        </div>
+
+        <!-- Grid Konten / Daftar Video (2 Kolom Layout) -->
+        <div id="videoGrid" class="grid grid-cols-2 gap-3 mb-12">
+            <!-- JS akan mengisi daftar kartu video di sini -->
+        </div>
+
+        <!-- Floating Navigation Bar -->
+        <div class="fixed bottom-3 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-md flex items-center justify-between pointer-events-none z-50">
+            <!-- Back Button -->
+            <button onclick="goBack()" class="pointer-events-auto w-11 h-11 bg-zinc-900/90 hover:bg-zinc-800 text-white rounded-full flex items-center justify-center backdrop-blur-lg border border-zinc-700/60 shadow-lg active:scale-95 transition">
+                <i class="ph ph-arrow-left text-lg"></i>
+            </button>
+
+            <!-- Brand Pill -->
+            <div class="pointer-events-auto flex items-center gap-2 bg-zinc-900/90 backdrop-blur-lg border border-zinc-700/60 text-gray-200 px-4 py-2.5 rounded-full shadow-lg hover:border-zinc-500 transition cursor-pointer">
+                <span class="text-xs font-semibold tracking-wide">gofile.wiki</span>
+                <i class="ph ph-dots-three-vertical text-gray-400 text-base"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-xs px-4 py-2 rounded-full shadow-xl border border-zinc-700 opacity-0 transition-all duration-300 pointer-events-none z-50">
+        Pesan Notifikasi
+    </div>
+
+    <script>
+        // Data Video Mockup
+        const videoData = [
+            {
+                id: "1000267482",
+                duration: "0:59",
+                views: "84 tay",
+                thumb: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&q=80",
+                fullDuration: "0:59",
+                fullViews: "84k tayangan"
+            },
+            {
+                id: "1000267483",
+                duration: "2:20",
+                views: "53 tay",
+                thumb: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400&q=80",
+                fullDuration: "2:20",
+                fullViews: "53k tayangan"
+            },
+            {
+                id: "1000267481",
+                duration: "1:06",
+                views: "73 tay",
+                thumb: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80",
+                fullDuration: "1:06",
+                fullViews: "73k tayangan"
+            },
+            {
+                id: "1000267480",
+                duration: "0:39",
+                views: "19 tay",
+                thumb: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&q=80",
+                fullDuration: "0:39",
+                fullViews: "19k tayangan"
+            },
+            {
+                id: "1000267485",
+                duration: "1:54",
+                views: "23 tay",
+                thumb: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&q=80",
+                fullDuration: "1:54",
+                fullViews: "23k tayangan"
+            },
+            {
+                id: "1000267490",
+                duration: "1:20",
+                views: "43 tay",
+                thumb: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=400&q=80",
+                fullDuration: "1:20",
+                fullViews: "43k tayangan"
+            },
+            {
+                id: "1000267210",
+                duration: "0:48",
+                views: "18 tay",
+                thumb: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=400&q=80",
+                fullDuration: "0:48",
+                fullViews: "18k tayangan"
+            },
+            {
+                id: "1000267207",
+                duration: "1:25",
+                views: "6,4 tay",
+                thumb: "https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=400&q=80",
+                fullDuration: "1:25",
+                fullViews: "6.4k tayangan"
+            },
+            {
+                id: "1000267208",
+                duration: "0:35",
+                views: "12 tay",
+                thumb: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=400&q=80",
+                fullDuration: "0:35",
+                fullViews: "12k tayangan"
+            },
+            {
+                id: "1000267212",
+                duration: "0:37",
+                views: "1,9 tay",
+                thumb: "https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?w=400&q=80",
+                fullDuration: "0:37",
+                fullViews: "1.9k tayangan"
+            }
+        ];
+
+        // State Management
+        let isPlaying = false;
+        let isMuted = false;
+        let progressTimer = null;
+        let activeCardId = null;
+
+        // Direct Link Management
+        function triggerDirectLink() {
+            const linkInput = document.getElementById('directLinkInput').value.trim();
+            if (linkInput) {
+                let targetUrl = linkInput;
+                if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+                    targetUrl = 'https://' + targetUrl;
+                }
+                window.open(targetUrl, '_blank');
+            }
+        }
+
+        function saveDirectLink() {
+            const url = document.getElementById('directLinkInput').value.trim();
+            if (url) {
+                localStorage.setItem('customDirectLink', url);
+                showToast("Direct link berhasil disimpan!");
+            } else {
+                showToast("URL tidak boleh kosong!");
+            }
+        }
+
+        function loadDirectLink() {
+            const savedUrl = localStorage.getItem('customDirectLink');
+            if (savedUrl) {
+                document.getElementById('directLinkInput').value = savedUrl;
+            }
+        }
+
+        // Render Grid Items
+        function renderGrid(videos) {
+            const grid = document.getElementById('videoGrid');
+            grid.innerHTML = '';
+
+            videos.forEach(item => {
+                const isActive = activeCardId === item.id;
+                const card = document.createElement('div');
+                card.className = `group cursor-pointer rounded-2xl p-2 bg-cardBg border transition-all duration-200 hover:border-accentPurple/50 hover:scale-[1.02] flex items-center gap-2.5 ${isActive ? 'border-accentPurple bg-purple-950/20' : 'border-zinc-800/80'}`;
+                card.onclick = () => selectVideo(item);
+
+                card.innerHTML = `
+                    <div class="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800">
+                        <img src="${item.thumb}" class="w-full h-full object-cover blur-[1px] brightness-75 group-hover:scale-110 transition duration-300">
+                        <div class="absolute inset-0 bg-black/20"></div>
+                        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                            <i class="ph-fill ph-play text-white text-sm"></i>
+                        </div>
+                    </div>
+                    <div class="flex flex-col justify-between overflow-hidden">
+                        <span class="text-xs font-semibold text-gray-200 truncate font-mono">${item.id}</span>
+                        <div class="flex items-center gap-3 mt-1.5 text-[11px]">
+                            <!-- Indicator Duration -->
+                            <div class="flex items-center gap-1 text-accentPink font-medium">
+                                <i class="ph ph-speedometer text-xs"></i>
+                                <span>${item.duration}</span>
+                            </div>
+                            <!-- Indicator Views -->
+                            <div class="flex items-center gap-1 text-accentPurple font-medium">
+                                <i class="ph ph-play-square text-xs"></i>
+                                <span>${item.views}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // Handle Main Play Click
+        function handleMainPlayClick() {
+            triggerDirectLink();
+            togglePlay();
+        }
+
+        // Pilih Video dari Grid
+        function selectVideo(item) {
+            triggerDirectLink();
+
+            activeCardId = item.id;
+            document.getElementById('mainThumbnail').src = item.thumb;
+            document.getElementById('mainTitle').innerText = item.id;
+            document.getElementById('mainViews').innerText = item.fullViews;
+            document.getElementById('timeDisplay').innerText = `0:00 / ${item.fullDuration}`;
+            
+            // Reset Progress
+            document.getElementById('progressBar').value = 0;
+            
+            // Re-render grid for active style
+            filterVideos();
+
+            // Auto Play on Select
+            if (!isPlaying) {
+                togglePlay();
+            } else {
+                restartProgress();
+            }
+
+            showToast(`Memutar ID: ${item.id}`);
+        }
+
+        // Toggle Play / Pause Simulation
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const playIcon = document.getElementById('playIcon');
+            const playingBadge = document.getElementById('playingBadge');
+
+            if (isPlaying) {
+                playIcon.className = "ph-fill ph-pause text-2xl";
+                playingBadge.classList.remove('hidden');
+                playingBadge.classList.add('flex');
+                startProgress();
+            } else {
+                playIcon.className = "ph-fill ph-play text-2xl ml-1";
+                playingBadge.classList.add('hidden');
+                playingBadge.classList.remove('flex');
+                clearInterval(progressTimer);
+            }
+        }
+
+        function startProgress() {
+            clearInterval(progressTimer);
+            const progressBar = document.getElementById('progressBar');
+            progressTimer = setInterval(() => {
+                let val = parseInt(progressBar.value);
+                if (val >= 100) {
+                    progressBar.value = 0;
+                    togglePlay();
+                } else {
+                    progressBar.value = val + 1;
+                }
+            }, 300);
+        }
+
+        function restartProgress() {
+            document.getElementById('progressBar').value = 0;
+            if (isPlaying) startProgress();
+        }
+
+        function seekVideo(val) {
+            document.getElementById('progressBar').value = val;
+        }
+
+        // Toggle Mute
+        function toggleMute() {
+            isMuted = !isMuted;
+            const muteIcon = document.getElementById('muteIcon');
+            if (isMuted) {
+                muteIcon.className = "ph ph-speaker-x text-red-400";
+                showToast("Suara Dimatikan");
+            } else {
+                muteIcon.className = "ph ph-speaker-high";
+                showToast("Suara Diaktifkan");
+            }
+        }
+
+        // Toggle Fullscreen Simulation
+        function toggleFullscreen() {
+            const container = document.getElementById('videoContainer');
+            if (!document.fullscreenElement) {
+                container.requestFullscreen?.() || showToast("Mode Fullscreen");
+            } else {
+                document.exitFullscreen?.();
+            }
+        }
+
+        // Filter Video
+        function filterVideos() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = videoData.filter(item => item.id.toLowerCase().includes(query));
+            renderGrid(filtered);
+        }
+
+        // Utility Functions
+        function openOptions() {
+            showToast("Opsi video dipanggil");
+        }
+
+        function goBack() {
+            showToast("Kembali ke halaman sebelumnya");
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        // Initial Load
+        window.onload = () => {
+            loadDirectLink();
+            renderGrid(videoData);
+        };
+    </script>
+</body>
+</html>
